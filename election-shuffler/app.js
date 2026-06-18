@@ -75,6 +75,7 @@ const state = {
   contestNumber: null,
   demoSliders: Object.fromEntries(DEMOGRAPHIC_SLIDERS.map(([key]) => [key, 0])),
   turnoutSliders: Object.fromEntries(DEMOGRAPHIC_SLIDERS.map(([key]) => [key, 0])),
+  demographicCandidateScope: "all",
   candidateShifts: {},
   territorySettings: {},
   activePreset: null,
@@ -109,6 +110,7 @@ const els = {
   tooltip: document.querySelector("#tooltip"),
   legend: document.querySelector("#legend"),
   modeToggle: document.querySelector("#modeToggle"),
+  demographicCandidateScope: document.querySelector("#demographicCandidateScope"),
   impactCards: document.querySelector("#impactCards"),
   compareCandidateA: document.querySelector("#compareCandidateA"),
   compareCandidateB: document.querySelector("#compareCandidateB"),
@@ -137,13 +139,14 @@ async function init() {
   renderDemographicSliders();
   renderPresets();
 
-  const [precincts, candidates, terms, predictions, priorMatches, candidateTerritory, geojson] = await Promise.all([
+  const [precincts, candidates, terms, predictions, priorMatches, candidateTerritory, officialContestTotals, geojson] = await Promise.all([
     loadCsv("data/precincts.csv"),
     loadCsv("data/candidates.csv"),
     loadCsv("data/candidate_terms.csv"),
     loadCsv("data/candidate_precinct_predictions.csv"),
     loadCsv("data/prior_matches.csv"),
     loadCsv("data/candidate_territory.csv"),
+    loadCsv("data/official_contest_totals.csv"),
     fetch("data/precincts.geojson").then((response) => {
       if (!response.ok) throw new Error("Failed to load data/precincts.geojson");
       return response.json();
@@ -154,6 +157,9 @@ async function init() {
   const validCandidates = candidates.filter((row) => parseBool(row.valid_model));
   const contests = buildContests(validCandidates);
   const turnoutExposureByFactor = buildTurnoutExposures(precincts);
+  const officialTotalsByContest = new Map(
+    officialContestTotals.map((row) => [row.contest_number, row])
+  );
   const territoryByModelPid = new Map(
     candidateTerritory.map((row) => [`${row.model_key}|${row.pid}`, row])
   );
@@ -179,6 +185,8 @@ async function init() {
     territoryByModelPid,
     territoryMetaByModel,
     turnoutExposureByFactor,
+    officialContestTotals,
+    officialTotalsByContest,
     geojson,
     contests,
   };
@@ -198,6 +206,7 @@ function bindEvents() {
   els.contestSelect.addEventListener("change", () => {
     state.contestNumber = els.contestSelect.value;
     state.activePreset = null;
+    state.demographicCandidateScope = "all";
     resetCandidateShiftsForContest();
     renderCandidateSliders();
     renderPresets();
@@ -223,6 +232,11 @@ function bindEvents() {
     paintMap();
     renderLegend(state.latestSummary);
     renderMapTitle();
+  });
+
+  els.demographicCandidateScope.addEventListener("change", () => {
+    state.demographicCandidateScope = els.demographicCandidateScope.value;
+    update();
   });
 }
 
@@ -306,9 +320,9 @@ function renderDemographicSliders() {
         </span>
       </span>
       <span class="factor-help" hidden>${escapeHtml(description)}</span>
-      <span class="subslider-label"><span>Support</span><output data-output="${key}">0.0</output></span>
+      <span class="subslider-label"><span>Candidate pattern</span><output data-output="${key}">0.00</output></span>
       <input aria-label="${escapeHtml(label)} support effect" data-slider="${key}" data-slider-kind="demo" type="range" min="-10" max="10" step="0.1" value="0">
-      <span class="subslider-label turnout-label"><span>Turnout</span><output data-turnout-output="${key}">0%</output></span>
+      <span class="subslider-label turnout-label"><span>Turnout</span><output data-turnout-output="${key}">0.00%</output></span>
       <input aria-label="${escapeHtml(label)} turnout change" data-turnout-slider="${key}" type="range" min="-30" max="30" step="1" value="0">
     `;
 
@@ -543,6 +557,8 @@ function territoryControlCopy(territory) {
 function update() {
   if (!state.data || !state.contestNumber) return;
 
+  syncDemographicCandidateScope();
+
   const scenario = runScenario(state.contestNumber);
   const summary = summarizeScenario(scenario.rows);
   state.latestScenario = scenario;
@@ -554,6 +570,23 @@ function update() {
   renderMeta(summary, scenario);
   renderMapTitle();
   renderInsights(scenario, summary);
+}
+
+function syncDemographicCandidateScope() {
+  const candidates = getContestCandidates();
+  const validKeys = new Set(candidates.map((row) => row.model_key));
+  if (state.demographicCandidateScope !== "all" && !validKeys.has(state.demographicCandidateScope)) {
+    state.demographicCandidateScope = "all";
+  }
+  const signature = `${state.contestNumber}|${candidates.map((row) => row.model_key).join("|")}`;
+  if (els.demographicCandidateScope.dataset.signature !== signature) {
+    els.demographicCandidateScope.innerHTML = `
+      <option value="all">All candidates</option>
+      ${candidates.map((row) => `<option value="${escapeHtml(row.model_key)}">${escapeHtml(row.candidate)}</option>`).join("")}
+    `;
+    els.demographicCandidateScope.dataset.signature = signature;
+  }
+  els.demographicCandidateScope.value = state.demographicCandidateScope;
 }
 
 function runScenario(contestNumber) {
@@ -586,6 +619,7 @@ function runScenario(contestNumber) {
   const contestTerms = terms.filter((row) => modelKeys.has(row.model_key));
 
   for (const term of contestTerms) {
+    if (state.demographicCandidateScope !== "all" && term.model_key !== state.demographicCandidateScope) continue;
     const group = termGroup(term);
     const sliderValue = state.demoSliders[group] || 0;
     if (sliderValue === 0) continue;
@@ -723,16 +757,32 @@ function summarizeScenario(rows) {
     item.base_votes += (row.base_share / 100) * contestVotes;
   }
 
-  const totalVotes = [...byCandidate.values()].reduce((sum, row) => sum + row.votes, 0);
-  const totalBaseVotes = [...byCandidate.values()].reduce((sum, row) => sum + row.base_votes, 0);
+  const candidates = [...byCandidate.values()];
+  const totals = districtVoteTotals(candidates);
 
-  return [...byCandidate.values()]
+  return candidates
     .map((row) => ({
       ...row,
-      share: totalVotes > 0 ? (row.votes / totalVotes) * 100 : 0,
-      base_share: totalBaseVotes > 0 ? (row.base_votes / totalBaseVotes) * 100 : 0,
+      share: totals.current > 0 ? (row.votes / totals.current) * 100 : 0,
+      base_share: totals.base > 0 ? (row.base_votes / totals.base) * 100 : 0,
     }))
     .sort((a, b) => b.share - a.share);
+}
+
+function districtVoteTotals(candidateRows) {
+  const namedCurrent = candidateRows.reduce((sum, row) => sum + num(row.votes), 0);
+  const namedBase = candidateRows.reduce((sum, row) => sum + num(row.base_votes), 0);
+  const official = state.data?.officialTotalsByContest?.get(state.contestNumber);
+  if (!official) return { current: namedCurrent, base: namedBase, other: 0 };
+
+  const officialBase = num(official.total_votes);
+  const otherBase = Math.max(0, num(official.other_votes) || (officialBase - namedBase));
+  const turnoutScale = namedBase > 0 ? namedCurrent / namedBase : 1;
+  return {
+    current: namedCurrent + (otherBase * turnoutScale),
+    base: officialBase,
+    other: otherBase * turnoutScale,
+  };
 }
 
 function renderSummary(summary) {
@@ -741,7 +791,7 @@ function renderSummary(summary) {
     return;
   }
 
-  els.summary.innerHTML = summary.map((row) => {
+  const candidateRows = summary.map((row) => {
     const delta = row.share - row.base_share;
     const deltaClass = delta >= 0 ? "delta-pos" : "delta-neg";
     return `
@@ -757,13 +807,28 @@ function renderSummary(summary) {
       </article>
     `;
   }).join("");
+
+  const totals = districtVoteTotals(summary);
+  const otherShare = totals.current > 0 ? (totals.other / totals.current) * 100 : 0;
+  const otherRow = totals.other >= 0.5 ? `
+    <article class="candidate-row other-row">
+      <div class="candidate-main">
+        <span class="candidate-name">Write-in / other</span>
+        <span class="candidate-share">${formatPct(otherShare)}</span>
+      </div>
+      <div class="bar-track"><div class="bar other-bar" style="width:${clamp(otherShare, 0, 100)}%"></div></div>
+      <div class="candidate-detail">${formatVotes(totals.other)} votes included in the official denominator</div>
+    </article>
+  ` : "";
+  els.summary.innerHTML = candidateRows + otherRow;
 }
 
 function renderMeta(summary, scenario) {
   const contest = state.data.contests.find((row) => row.contest_number === state.contestNumber);
   const precinctCount = new Set(scenario.rows.map((row) => row.pid)).size;
   const candidateCount = summary.length;
-  const totalVotes = summary.reduce((sum, row) => sum + row.votes, 0);
+  const voteTotals = districtVoteTotals(summary);
+  const totalVotes = voteTotals.current;
   const flippedCount = [...scenario.byPid.keys()].filter((pid) => {
     return scenario.baseWinnerByPid.get(pid) !== scenario.scenarioWinnerByPid.get(pid);
   }).length;
@@ -771,7 +836,7 @@ function renderMeta(summary, scenario) {
   els.contestMeta.textContent = contest
     ? `${contest.contest_family} - ${candidateCount} candidates`
     : "";
-  const baseVotes = [...scenario.byPid.values()].reduce((sum, rows) => sum + num(rows[0]?.contest_votes), 0);
+  const baseVotes = voteTotals.base;
   const turnoutChange = baseVotes > 0 ? ((totalVotes / baseVotes) - 1) * 100 : 0;
   els.mapMeta.textContent = `${precinctCount} precincts, ${formatVotes(totalVotes)} votes (${formatSigned(turnoutChange)}% turnout), ${flippedCount} winner changes. District totals come from precinct results.`;
 }
@@ -833,16 +898,17 @@ function renderImpactCards(scenario, summary) {
   const closest = [...scenario.byPid.entries()]
     .map(([pid, rows]) => ({ pid, margin: (rows[0]?.scenario_share || 0) - (rows[1]?.scenario_share || 0) }))
     .sort((a, b) => a.margin - b.margin)[0];
-  const currentVotes = summary.reduce((sum, row) => sum + row.votes, 0);
-  const baseVotes = [...scenario.byPid.values()].reduce((sum, rows) => sum + num(rows[0]?.contest_votes), 0);
+  const voteTotals = districtVoteTotals(summary);
+  const currentVotes = voteTotals.current;
+  const baseVotes = voteTotals.base;
   const turnoutChange = baseVotes > 0 ? ((currentVotes / baseVotes) - 1) * 100 : 0;
 
   const cards = [
-    ["District leader", leader?.candidate || "None", `${formatPct(leader?.share || 0)} support, ${lead.toFixed(1)}-point lead`],
+    ["District leader", leader?.candidate || "None", `${formatPct(leader?.share || 0)} support, ${lead.toFixed(2)}-point lead`],
     ["Turnout", `${formatSigned(turnoutChange)}%`, `${formatVotes(currentVotes)} votes in this scenario`],
     ["Winner changes", String(flipped), flipped ? "Precincts with a different leader" : "No precinct leaders changed"],
     ["Biggest movement", mover?.candidate || "None", mover ? `${formatSigned(mover.share - mover.base_share)} points` : "No change"],
-    ["Closest precinct", closest ? `Precinct ${closest.pid}` : "None", closest ? `${closest.margin.toFixed(1)}-point margin` : "No result"],
+    ["Closest precinct", closest ? `Precinct ${closest.pid}` : "None", closest ? `${closest.margin.toFixed(2)}-point margin` : "No result"],
   ];
   els.impactCards.innerHTML = cards.map(([label, value, detail]) => `
     <article class="impact-card">
@@ -918,8 +984,11 @@ function renderDemographicExplorer(scenario) {
   const xScale = (value) => left + ((value - xMin) / Math.max(xMax - xMin, 1)) * (width - left - right);
   const yScale = (value) => height - bottom - ((value - yMin) / Math.max(yMax - yMin, 1)) * (height - top - bottom);
   const candidateName = scenario.candidateRows.find((row) => row.model_key === key)?.candidate || "Candidate";
+  const fit = linearRegression(points);
+  const fitStart = clamp(fit.intercept + (fit.slope * xMin), yMin, yMax);
+  const fitEnd = clamp(fit.intercept + (fit.slope * xMax), yMin, yMax);
 
-  els.scatterSummary.innerHTML = `<strong>${escapeHtml(candidateName)}</strong> and ${escapeHtml(FACTOR_LABELS[factor])}: ${escapeHtml(correlationDescription(correlationValue))} relationship across precincts (r = ${correlationValue.toFixed(2)}).`;
+  els.scatterSummary.innerHTML = `<strong>${escapeHtml(candidateName)}</strong> and ${escapeHtml(FACTOR_LABELS[factor])}: ${escapeHtml(correlationDescription(correlationValue))} relationship across precincts (r = ${correlationValue.toFixed(2)}). The solid line shows the overall best fit.`;
   els.scatterPlot.innerHTML = `
     <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
     <line class="chart-axis" x1="${left}" y1="${top}" x2="${left}" y2="${height - bottom}"></line>
@@ -928,6 +997,7 @@ function renderDemographicExplorer(scenario) {
     <text class="chart-label" x="${width / 2}" y="${height - 4}" text-anchor="middle">${escapeHtml(FACTOR_LABELS[factor])}</text>
     <text class="chart-label" x="${left - 8}" y="${height - bottom}" text-anchor="end">${yMin.toFixed(0)}%</text>
     <text class="chart-label" x="${left - 8}" y="${top + 4}" text-anchor="end">${yMax.toFixed(0)}%</text>
+    <line class="best-fit-line" x1="${xScale(xMin).toFixed(2)}" y1="${yScale(fitStart).toFixed(2)}" x2="${xScale(xMax).toFixed(2)}" y2="${yScale(fitEnd).toFixed(2)}"></line>
     ${points.map((point) => `
       <circle class="scatter-point" cx="${xScale(point.x).toFixed(2)}" cy="${yScale(point.y).toFixed(2)}" r="4" fill="${point.color}">
         <title>Precinct ${escapeHtml(point.pid)}: ${formatFactorValue(factor, point.x)}, ${formatPct(point.y)} support</title>
@@ -973,7 +1043,7 @@ function renderPrecinctTable(scenario) {
       <td>${escapeHtml(row.pid)}</td>
       <td>${escapeHtml(row.winner)}</td>
       <td>${formatPct(row.winner_share)}</td>
-      <td>${row.margin.toFixed(1)} points</td>
+      <td>${row.margin.toFixed(2)} points</td>
       <td>${formatPct(row.candidate_share)}</td>
       <td class="${row.candidate_change >= 0 ? "delta-pos" : "delta-neg"}">${formatSigned(row.candidate_change)} points</td>
       <td>${formatSigned(row.turnout_change)}%</td>
@@ -1015,6 +1085,20 @@ function correlation(xs, ys) {
   return denominator > 0 ? numerator / denominator : 0;
 }
 
+function linearRegression(points) {
+  if (points.length < 2) return { slope: 0, intercept: points[0]?.y || 0 };
+  const xMean = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+  const yMean = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+  let numerator = 0;
+  let denominator = 0;
+  for (const point of points) {
+    numerator += (point.x - xMean) * (point.y - yMean);
+    denominator += (point.x - xMean) ** 2;
+  }
+  const slope = denominator > 0 ? numerator / denominator : 0;
+  return { slope, intercept: yMean - (slope * xMean) };
+}
+
 function correlationDescription(value) {
   const strength = Math.abs(value) >= 0.65 ? "strong" : Math.abs(value) >= 0.35 ? "moderate" : "weak";
   const direction = value >= 0 ? "positive" : "negative";
@@ -1024,8 +1108,8 @@ function correlationDescription(value) {
 function formatFactorValue(factor, value) {
   if (factor === "income") return `$${Math.round(value).toLocaleString("en-US")}`;
   if (factor === "density") return `${Math.round(value).toLocaleString("en-US")}/km²`;
-  if (factor === "median_age") return `${value.toFixed(1)} years`;
-  return `${value.toFixed(1)}%`;
+  if (factor === "median_age") return `${value.toFixed(2)} years`;
+  return `${value.toFixed(2)}%`;
 }
 
 function csvCell(value) {
@@ -1348,7 +1432,7 @@ function quantile(sortedValues, probability) {
 }
 
 function formatPct(value) {
-  return `${value.toFixed(1)}%`;
+  return `${value.toFixed(2)}%`;
 }
 
 function formatVotes(value) {
@@ -1356,7 +1440,7 @@ function formatVotes(value) {
 }
 
 function formatSigned(value) {
-  const rounded = Number(value).toFixed(1);
+  const rounded = Number(value).toFixed(2);
   return `${value > 0 ? "+" : ""}${rounded}`;
 }
 

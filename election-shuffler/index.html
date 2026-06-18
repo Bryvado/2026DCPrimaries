@@ -36,7 +36,11 @@
             <span class="field-label">Demographic patterns</span>
             <button id="resetButton" type="button" class="reset-btn">Reset</button>
           </div>
-          <p class="section-hint">Test how each characteristic changes candidate support across precincts. The population itself does not change.</p>
+          <label class="scope-control">
+            <span>Apply candidate patterns to</span>
+            <select id="demographicCandidateScope" aria-label="Candidates affected by demographic pattern controls"></select>
+          </label>
+          <p class="section-hint">Candidate pattern strengthens or weakens how the selected candidate normally performs across these precincts. Turnout changes how many votes are cast. The population itself does not change.</p>
           <div id="sliders" class="sliders"></div>
 
           <div class="controls-divider controls-sep-label">
@@ -179,8 +183,44 @@
         </section>
 
         <section class="methods" aria-labelledby="methodsTitle">
-          <h3 id="methodsTitle">How to read this page</h3>
-          <p>Support controls change how votes are divided among candidates. Turnout controls change the number of votes cast in precincts associated with a demographic characteristic. District totals are always rebuilt from precinct results.</p>
+          <span class="section-kicker">Methods and sources</span>
+          <h3 id="methodsTitle">How the shuffler is built</h3>
+          <p class="methods-intro">The starting point comes from actual D.C. precinct results. We combine those results with Census characteristics and earlier election patterns to estimate where each candidate is relatively stronger or weaker. Your controls then change those precinct-level relationships, and the district result is rebuilt from the changed precincts.</p>
+
+          <div class="source-flow" role="img" aria-label="Election results, Census data, and precinct boundaries feed candidate estimates; user controls create precinct scenarios and district outputs">
+            <section class="flow-stage source-stage">
+              <span class="flow-number">1</span>
+              <h4>Source data</h4>
+              <div class="source-list">
+                <article><strong>D.C. election results</strong><span>2026 precinct results and certified elections from 2018-2024</span></article>
+                <article><strong>U.S. Census ACS</strong><span>2024 five-year estimates for age, race, income, education, housing, transit, and population</span></article>
+                <article><strong>D.C. precinct geography</strong><span>Official precinct boundaries used for the map and geographic matching</span></article>
+              </div>
+            </section>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <section class="flow-stage">
+              <span class="flow-number">2</span>
+              <h4>Precinct estimates</h4>
+              <p>For each candidate, the analysis measures how support varies with local demographics, density, and past election strength where available.</p>
+            </section>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <section class="flow-stage">
+              <span class="flow-number">3</span>
+              <h4>Your changes</h4>
+              <p>Candidate patterns change vote preference. Turnout changes vote totals. District focus controls where a candidate change is strongest.</p>
+            </section>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <section class="flow-stage">
+              <span class="flow-number">4</span>
+              <h4>Results</h4>
+              <p>Precinct shares are recalculated first. The map, district totals, comparisons, chart, and table all come from those precinct results.</p>
+            </section>
+          </div>
+
+          <div class="source-notes">
+            <p><strong>What this can show:</strong> how different assumptions change the geographic coalition behind a result.</p>
+            <p><strong>What it cannot show:</strong> how any individual person will vote. Precinct relationships describe places, not individual voters, and the 2026 results are unofficial until certified.</p>
+          </div>
         </section>
       </section>
     </main>

@@ -97,6 +97,15 @@ Multiple active factors compound. The combined precinct multiplier is bounded
 between 0.25 and 2.5. It changes `contest_votes`, not candidate preference.
 District totals are then recalculated from the precinct scenario votes.
 
+## Official Contest Totals
+
+Expected file: `data/official_contest_totals.csv`
+
+The named-candidate dataset excludes write-in and other votes. Where an
+official total is available, this file supplies the full denominator so the
+default district percentages match DCBOE. The mayor contest includes 357 such
+votes, producing 54,105 / 102,377 = 52.85% for Janeese Lewis George.
+
 ## Candidate Territory
 
 Expected file: `data/candidate_territory.csv`
