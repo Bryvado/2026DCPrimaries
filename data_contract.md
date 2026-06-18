@@ -1,1 +1,0 @@
-[content from data_contract.md - full file]
