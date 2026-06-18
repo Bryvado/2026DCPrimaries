@@ -83,6 +83,20 @@ Scenario functions should return this table shape, plus:
 
 Do not treat sliders as uniform citywide shocks. Sliders must scale the relevant exposure column precinct by precinct.
 
+## Turnout Scenarios
+
+Each demographic factor also has a turnout setting from -30% to +30%. Raw
+precinct values are scaled from 0 to 1 using their 5th and 95th percentiles.
+The turnout setting is applied most strongly to the highest-exposure precincts:
+
+```text
+factor_multiplier = 1 + turnout_setting * scaled_precinct_exposure
+```
+
+Multiple active factors compound. The combined precinct multiplier is bounded
+between 0.25 and 2.5. It changes `contest_votes`, not candidate preference.
+District totals are then recalculated from the precinct scenario votes.
+
 ## Candidate Territory
 
 Expected file: `data/candidate_territory.csv`

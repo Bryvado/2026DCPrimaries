@@ -13,7 +13,12 @@ The core modeling rule is spatial exposure. Sliders must not add the same candid
 The scenario helper lives at:
 - `src/scenario_logic.py`
 
-The app should eventually be a static one-page site suitable for GitHub Pages.
+The app is a static, scrollable site suitable for GitHub Pages.
+
+The current page includes the precinct shuffler plus live scenario impact,
+candidate comparison, demographic exploration, and a downloadable precinct
+table. Each demographic characteristic has separate support and turnout
+controls. Support changes candidate shares; turnout changes precinct vote totals.
 
 ## Static app
 
