@@ -332,7 +332,7 @@ function renderDemographicSliders() {
         </span>
       </span>
       <span class="factor-help" hidden>${escapeHtml(description)}</span>
-      <span class="subslider-label"><span>Candidate pattern</span><output data-output="${key}">0.00</output></span>
+      <span class="subslider-label"><span>Support shift</span><output data-output="${key}">0.00</output></span>
       <input aria-label="${escapeHtml(label)} support effect" data-slider="${key}" data-slider-kind="demo" type="range" min="-10" max="10" step="0.1" value="0">
       <span class="subslider-label turnout-label"><span>Turnout</span><output data-turnout-output="${key}">0.00%</output></span>
       <input aria-label="${escapeHtml(label)} turnout change" data-turnout-slider="${key}" type="range" min="-30" max="30" step="1" value="0">
@@ -629,7 +629,7 @@ function updateDemographicScopeUI(candidates) {
 }
 
 function runScenario(contestNumber) {
-  const { validCandidates, terms, predictions, precinctByPid } = state.data;
+  const { validCandidates, predictions } = state.data;
   const candidateRows = validCandidates.filter((row) => row.contest_number === contestNumber);
   const candidateColorByModel = new Map(candidateRows.map((row, index) => [row.model_key, COLORS[index % COLORS.length]]));
   const modelKeys = new Set(candidateRows.map((row) => row.model_key));
@@ -653,22 +653,13 @@ function runScenario(contestNumber) {
       scenario_votes: 0,
     }));
 
-  const rowsByModel = groupBy(contestPredictions, (row) => row.model_key);
-  const priorZByModelPid = buildPriorExposure(contestPredictions);
-  const contestTerms = terms.filter((row) => modelKeys.has(row.model_key));
-
-  for (const term of contestTerms) {
-    if (!state.demographicCandidateSelection.has(term.model_key)) continue;
-    const group = termGroup(term);
-    const sliderValue = state.demoSliders[group] || 0;
-    if (sliderValue === 0) continue;
-
-    const coef = num(term.coef_pp_per_sd);
-    const rows = rowsByModel.get(term.model_key) || [];
-
-    for (const row of rows) {
-      const exposure = exposureForTerm(row, term.term, precinctByPid, priorZByModelPid);
-      row.demographic_delta_pp += coef * sliderValue * exposure;
+  for (const row of contestPredictions) {
+    if (!state.demographicCandidateSelection.has(row.model_key)) continue;
+    for (const [factor] of DEMOGRAPHIC_SLIDERS) {
+      const shift = state.demoSliders[factor] || 0;
+      if (shift === 0) continue;
+      const exposure = state.data.turnoutExposureByFactor.get(factor)?.get(row.pid) || 0;
+      row.demographic_delta_pp += shift * exposure;
     }
   }
 
@@ -1197,7 +1188,7 @@ function flipLegend() {
   return `
     <span class="legend-item">
       <span class="swatch swatch-flip"></span>
-      Winner changed
+      Different winner than start
     </span>
   `;
 }
@@ -1304,6 +1295,8 @@ function showTooltip(event, pid) {
   const baseWinner = scenario?.baseWinnerByPid.get(pid);
   const scenarioWinner = scenario?.scenarioWinnerByPid.get(pid);
   const flipped = baseWinner && scenarioWinner && baseWinner !== scenarioWinner;
+  const baseWinnerName = rows.find((row) => row.model_key === baseWinner)?.candidate || "Starting winner";
+  const scenarioWinnerName = rows.find((row) => row.model_key === scenarioWinner)?.candidate || "Current winner";
   const topRows = rows.slice(0, 4);
   const body = topRows.map((row) => {
     const delta = row.scenario_share - row.base_share;
@@ -1313,7 +1306,10 @@ function showTooltip(event, pid) {
     return `${escapeHtml(row.candidate)}: ${formatPct(row.scenario_share)} (${formatSigned(delta)} points from start${direct})`;
   }).join("<br>");
 
-  els.tooltip.innerHTML = `<strong>Precinct ${escapeHtml(pid)}</strong>${flipped ? "<br>Winner changed" : ""}<br>${body || "No candidate estimates"}`;
+  const winnerChange = flipped
+    ? `<br><span class="tooltip-change">${escapeHtml(baseWinnerName)} → ${escapeHtml(scenarioWinnerName)}</span>`
+    : "";
+  els.tooltip.innerHTML = `<strong>Precinct ${escapeHtml(pid)}</strong>${winnerChange}<br>${body || "No candidate estimates"}`;
   els.tooltip.hidden = false;
 
   const wrap = event.currentTarget.ownerSVGElement.parentElement;

@@ -37,7 +37,7 @@
             <button id="resetButton" type="button" class="reset-btn">Reset</button>
           </div>
           <div class="scope-control">
-            <span>Candidate patterns affect</span>
+            <span>Support shifts affect</span>
             <details id="demographicCandidateScope" class="candidate-checklist">
               <summary id="demographicScopeSummary">All candidates</summary>
               <div class="checklist-actions">
@@ -47,7 +47,7 @@
               <div id="demographicCandidateChecklist" class="checklist-options"></div>
             </details>
           </div>
-          <p class="section-hint">Candidate pattern strengthens or weakens how the selected candidate normally performs across these precincts. Turnout changes how many votes are cast. The population itself does not change.</p>
+          <p class="section-hint">Choose candidates, then shift their support. A -10 shift subtracts up to 10 points where that characteristic is most prevalent; other precincts move less. Turnout changes how many votes are cast.</p>
           <div id="sliders" class="sliders"></div>
 
           <div class="controls-divider controls-sep-label">
@@ -63,14 +63,16 @@
               How this works
             </summary>
             <div class="explain-body">
-              <p>Demographic sliders test stronger or weaker links between a precinct characteristic and candidate support. “Black population,” for example, is the ACS estimate of the percentage of residents identifying as Black. It does not change who lives in the precinct.</p>
-              <p>Candidate support settings do not change turnout. They raise or lower support across precincts, then each precinct is brought back to a total of 100% across all candidates. That is why a +10 setting can produce a smaller final change.</p>
+              <p>Support shift changes only the checked candidates. A -10 Black population shift subtracts up to 10 points in precincts with the highest Black population; lower-share precincts move less. It does not change who lives in the precinct.</p>
+              <p>Support settings do not change turnout. After support changes, candidates still divide the same 100% of votes in each precinct. That is why a +10 setting can produce a smaller districtwide change.</p>
               <p>When a candidate has a district or past election pattern, the change can be concentrated there. Results for the full district are calculated from the precinct results.</p>
             </div>
           </details>
         </aside>
 
-        <section class="map-panel" aria-label="Precinct scenario map">
+        <div class="content-column">
+          <div class="map-summary-row">
+            <section class="map-panel" aria-label="Precinct scenario map">
           <div class="map-toolbar">
             <div class="map-toolbar-left">
               <h2 id="mapTitle">Precinct Winner Map</h2>
@@ -92,22 +94,18 @@
               <div id="legend" class="legend"></div>
             </div>
           </div>
-        </section>
+            </section>
 
-        <section class="summary-panel" aria-label="District candidate summary">
-          <div class="summary-head">
-            <h2>District Summary</h2>
-            <p class="summary-hint">Calculated from precinct results</p>
+            <section class="summary-panel" aria-label="District candidate summary">
+              <div class="summary-head">
+                <h2>District Summary</h2>
+                <p class="summary-hint">Calculated from precinct results</p>
+              </div>
+              <div id="summary" class="summary"></div>
+            </section>
           </div>
-          <div id="summary" class="summary"></div>
-        </section>
-      </section>
 
-      <section class="insights" aria-label="Scenario details">
-        <header class="section-heading">
-          <span class="section-kicker">Scenario details</span>
-          <h2>What changed across the district</h2>
-        </header>
+          <section class="insights" aria-label="Scenario details">
 
         <section class="insight-section" aria-labelledby="impactTitle">
           <div class="insight-heading">
@@ -168,7 +166,7 @@
               <option value="turnout_desc">Largest turnout increase</option>
               <option value="pid_asc">Precinct number</option>
             </select>
-            <label class="check-control"><input id="changedOnly" type="checkbox"> Winner changed</label>
+            <label class="check-control"><input id="changedOnly" type="checkbox"> Different winner than start</label>
           </div>
           <div class="table-wrap">
             <table>
@@ -214,7 +212,7 @@
             <section class="flow-stage">
               <span class="flow-number">3</span>
               <h4>Your changes</h4>
-              <p>Candidate patterns change vote preference. Turnout changes vote totals. District focus controls where a candidate change is strongest.</p>
+              <p>Support shifts change vote preference. Turnout changes vote totals. District focus controls where a candidate change is strongest.</p>
             </section>
             <span class="flow-arrow" aria-hidden="true">→</span>
             <section class="flow-stage">
@@ -229,6 +227,8 @@
             <p><strong>What it cannot show:</strong> how any individual person will vote. Precinct relationships describe places, not individual voters, and the 2026 results are unofficial until certified.</p>
           </div>
         </section>
+          </section>
+        </div>
       </section>
     </main>
 

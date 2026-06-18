@@ -83,6 +83,12 @@ Scenario functions should return this table shape, plus:
 
 Do not treat sliders as uniform citywide shocks. Sliders must scale the relevant exposure column precinct by precinct.
 
+Demographic support shifts are directional and candidate-selected. A `-10`
+setting must never increase the selected candidate's support. It applies from 0
+points in the lowest-exposure precincts to -10 points in the highest-exposure
+precincts before precinct shares are returned to a 100% total. The fitted model
+coefficients inform the starting shares, not the sign of the interactive shift.
+
 ## Turnout Scenarios
 
 Each demographic factor also has a turnout setting from -30% to +30%. Raw
