@@ -75,7 +75,8 @@ const state = {
   contestNumber: null,
   demoSliders: Object.fromEntries(DEMOGRAPHIC_SLIDERS.map(([key]) => [key, 0])),
   turnoutSliders: Object.fromEntries(DEMOGRAPHIC_SLIDERS.map(([key]) => [key, 0])),
-  demographicCandidateScope: "all",
+  demographicCandidateSelection: new Set(),
+  demographicScopeContest: null,
   candidateShifts: {},
   territorySettings: {},
   activePreset: null,
@@ -111,6 +112,10 @@ const els = {
   legend: document.querySelector("#legend"),
   modeToggle: document.querySelector("#modeToggle"),
   demographicCandidateScope: document.querySelector("#demographicCandidateScope"),
+  demographicScopeSummary: document.querySelector("#demographicScopeSummary"),
+  demographicCandidateChecklist: document.querySelector("#demographicCandidateChecklist"),
+  selectAllDemographicCandidates: document.querySelector("#selectAllDemographicCandidates"),
+  clearDemographicCandidates: document.querySelector("#clearDemographicCandidates"),
   impactCards: document.querySelector("#impactCards"),
   compareCandidateA: document.querySelector("#compareCandidateA"),
   compareCandidateB: document.querySelector("#compareCandidateB"),
@@ -206,7 +211,8 @@ function bindEvents() {
   els.contestSelect.addEventListener("change", () => {
     state.contestNumber = els.contestSelect.value;
     state.activePreset = null;
-    state.demographicCandidateScope = "all";
+    state.demographicCandidateSelection = new Set();
+    state.demographicScopeContest = null;
     resetCandidateShiftsForContest();
     renderCandidateSliders();
     renderPresets();
@@ -234,8 +240,14 @@ function bindEvents() {
     renderMapTitle();
   });
 
-  els.demographicCandidateScope.addEventListener("change", () => {
-    state.demographicCandidateScope = els.demographicCandidateScope.value;
+  els.selectAllDemographicCandidates.addEventListener("click", () => {
+    state.demographicCandidateSelection = new Set(getContestCandidates().map((row) => row.model_key));
+    syncDemographicCandidateScope();
+    update();
+  });
+  els.clearDemographicCandidates.addEventListener("click", () => {
+    state.demographicCandidateSelection = new Set();
+    syncDemographicCandidateScope();
     update();
   });
 }
@@ -575,18 +587,45 @@ function update() {
 function syncDemographicCandidateScope() {
   const candidates = getContestCandidates();
   const validKeys = new Set(candidates.map((row) => row.model_key));
-  if (state.demographicCandidateScope !== "all" && !validKeys.has(state.demographicCandidateScope)) {
-    state.demographicCandidateScope = "all";
+  if (state.demographicScopeContest !== state.contestNumber) {
+    state.demographicCandidateSelection = new Set(validKeys);
+    state.demographicScopeContest = state.contestNumber;
   }
+  state.demographicCandidateSelection = new Set(
+    [...state.demographicCandidateSelection].filter((key) => validKeys.has(key))
+  );
   const signature = `${state.contestNumber}|${candidates.map((row) => row.model_key).join("|")}`;
-  if (els.demographicCandidateScope.dataset.signature !== signature) {
-    els.demographicCandidateScope.innerHTML = `
-      <option value="all">All candidates</option>
-      ${candidates.map((row) => `<option value="${escapeHtml(row.model_key)}">${escapeHtml(row.candidate)}</option>`).join("")}
-    `;
-    els.demographicCandidateScope.dataset.signature = signature;
+  if (els.demographicCandidateChecklist.dataset.signature !== signature) {
+    els.demographicCandidateChecklist.innerHTML = candidates.map((row) => `
+      <label>
+        <input type="checkbox" value="${escapeHtml(row.model_key)}">
+        <span class="swatch" style="background:${row.color}"></span>
+        <span>${escapeHtml(row.candidate)}</span>
+      </label>
+    `).join("");
+    els.demographicCandidateChecklist.querySelectorAll("input").forEach((input) => {
+      input.addEventListener("change", () => {
+        if (input.checked) state.demographicCandidateSelection.add(input.value);
+        else state.demographicCandidateSelection.delete(input.value);
+        updateDemographicScopeUI(candidates);
+        update();
+      });
+    });
+    els.demographicCandidateChecklist.dataset.signature = signature;
   }
-  els.demographicCandidateScope.value = state.demographicCandidateScope;
+  updateDemographicScopeUI(candidates);
+}
+
+function updateDemographicScopeUI(candidates) {
+  const selected = state.demographicCandidateSelection;
+  els.demographicCandidateChecklist.querySelectorAll("input").forEach((input) => {
+    input.checked = selected.has(input.value);
+  });
+  if (selected.size === candidates.length) els.demographicScopeSummary.textContent = "All candidates";
+  else if (selected.size === 0) els.demographicScopeSummary.textContent = "No candidates";
+  else if (selected.size === 1) {
+    els.demographicScopeSummary.textContent = candidates.find((row) => selected.has(row.model_key))?.candidate || "1 candidate";
+  } else els.demographicScopeSummary.textContent = `${selected.size} candidates`;
 }
 
 function runScenario(contestNumber) {
@@ -619,7 +658,7 @@ function runScenario(contestNumber) {
   const contestTerms = terms.filter((row) => modelKeys.has(row.model_key));
 
   for (const term of contestTerms) {
-    if (state.demographicCandidateScope !== "all" && term.model_key !== state.demographicCandidateScope) continue;
+    if (!state.demographicCandidateSelection.has(term.model_key)) continue;
     const group = termGroup(term);
     const sliderValue = state.demoSliders[group] || 0;
     if (sliderValue === 0) continue;

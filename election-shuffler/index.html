@@ -36,10 +36,17 @@
             <span class="field-label">Demographic patterns</span>
             <button id="resetButton" type="button" class="reset-btn">Reset</button>
           </div>
-          <label class="scope-control">
-            <span>Apply candidate patterns to</span>
-            <select id="demographicCandidateScope" aria-label="Candidates affected by demographic pattern controls"></select>
-          </label>
+          <div class="scope-control">
+            <span>Candidate patterns affect</span>
+            <details id="demographicCandidateScope" class="candidate-checklist">
+              <summary id="demographicScopeSummary">All candidates</summary>
+              <div class="checklist-actions">
+                <button id="selectAllDemographicCandidates" type="button">Select all</button>
+                <button id="clearDemographicCandidates" type="button">Clear</button>
+              </div>
+              <div id="demographicCandidateChecklist" class="checklist-options"></div>
+            </details>
+          </div>
           <p class="section-hint">Candidate pattern strengthens or weakens how the selected candidate normally performs across these precincts. Turnout changes how many votes are cast. The population itself does not change.</p>
           <div id="sliders" class="sliders"></div>
 
