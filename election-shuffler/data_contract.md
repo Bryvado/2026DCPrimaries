@@ -83,11 +83,14 @@ Scenario functions should return this table shape, plus:
 
 Do not treat sliders as uniform citywide shocks. Sliders must scale the relevant exposure column precinct by precinct.
 
-Demographic support shifts are directional and candidate-selected. A `-10`
-setting must never increase the selected candidate's support. It applies from 0
-points in the lowest-exposure precincts to -10 points in the highest-exposure
-precincts before precinct shares are returned to a 100% total. The fitted model
-coefficients inform the starting shares, not the sign of the interactive shift.
+Demographic support shifts are directional and candidate-selected. Checked
+candidates move as a coalition: a `-10` setting removes between 0 and 10 points
+from their combined support according to precinct exposure, while unchecked
+candidates receive the offset proportionally. Selecting every candidate causes
+no relative support change. Shares are rescaled within the portion of the vote
+represented by modeled candidates. Observed precinct vote shares are the neutral
+starting point so reset reproduces the election result. Fitted values describe
+the underlying analysis but are not substituted for the displayed result.
 
 ## Turnout Scenarios
 

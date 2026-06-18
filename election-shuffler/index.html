@@ -32,22 +32,24 @@
 
           <div class="controls-divider"></div>
 
-          <div class="control-head">
-            <span class="field-label">Demographic patterns</span>
-            <button id="resetButton" type="button" class="reset-btn">Reset</button>
+          <div class="demographic-scope-sticky">
+            <div class="control-head">
+              <span class="field-label">Demographic patterns</span>
+              <button id="resetButton" type="button" class="reset-btn">Reset</button>
+            </div>
+            <div class="scope-control">
+              <span>Apply support shifts to</span>
+              <details id="demographicCandidateScope" class="candidate-checklist">
+                <summary id="demographicScopeSummary">All candidates</summary>
+                <div class="checklist-actions">
+                  <button id="selectAllDemographicCandidates" type="button">Select all</button>
+                  <button id="clearDemographicCandidates" type="button">Clear</button>
+                </div>
+                <div id="demographicCandidateChecklist" class="checklist-options"></div>
+              </details>
+            </div>
           </div>
-          <div class="scope-control">
-            <span>Support shifts affect</span>
-            <details id="demographicCandidateScope" class="candidate-checklist">
-              <summary id="demographicScopeSummary">All candidates</summary>
-              <div class="checklist-actions">
-                <button id="selectAllDemographicCandidates" type="button">Select all</button>
-                <button id="clearDemographicCandidates" type="button">Clear</button>
-              </div>
-              <div id="demographicCandidateChecklist" class="checklist-options"></div>
-            </details>
-          </div>
-          <p class="section-hint">Choose candidates, then shift their support. A -10 shift subtracts up to 10 points where that characteristic is most prevalent; other precincts move less. Turnout changes how many votes are cast.</p>
+          <p class="section-hint">Choose one or more candidates, then shift their combined support. A -10 shift removes up to 10 points where that characteristic is most prevalent; other precincts move less. Turnout changes how many votes are cast.</p>
           <div id="sliders" class="sliders"></div>
 
           <div class="controls-divider controls-sep-label">
@@ -63,8 +65,8 @@
               How this works
             </summary>
             <div class="explain-body">
-              <p>Support shift changes only the checked candidates. A -10 Black population shift subtracts up to 10 points in precincts with the highest Black population; lower-share precincts move less. It does not change who lives in the precinct.</p>
-              <p>Support settings do not change turnout. After support changes, candidates still divide the same 100% of votes in each precinct. That is why a +10 setting can produce a smaller districtwide change.</p>
+              <p>Checked candidates move together as a group. A -10 Black population shift removes up to 10 points from their combined support in precincts with the highest Black population share; lower-share precincts move less. Selecting every candidate leaves relative support unchanged.</p>
+              <p>Support settings do not change turnout. They redistribute the displayed candidate vote within each precinct, so a +10 setting can produce a smaller districtwide change after every precinct is combined.</p>
               <p>When a candidate has a district or past election pattern, the change can be concentrated there. Results for the full district are calculated from the precinct results.</p>
             </div>
           </details>
@@ -82,7 +84,7 @@
               <div class="mode-toggle" id="modeToggle" role="group" aria-label="Map mode">
                 <button class="mode-btn active" type="button" data-mode="winner">Winner</button>
                 <button class="mode-btn" type="button" data-mode="margin">Margin</button>
-                <button class="mode-btn" type="button" data-mode="change">Change</button>
+                <button class="mode-btn" type="button" data-mode="change" hidden>Change from result</button>
               </div>
             </div>
           </div>
@@ -110,7 +112,7 @@
         <section class="insight-section" aria-labelledby="impactTitle">
           <div class="insight-heading">
             <h3 id="impactTitle">Scenario Impact</h3>
-            <p>Updates automatically as controls change.</p>
+            <p id="impactCaption">A quick read of the precinct results.</p>
           </div>
           <div id="impactCards" class="impact-grid"></div>
         </section>
@@ -119,9 +121,8 @@
           <div class="insight-heading">
             <h3 id="comparisonTitle">Candidate Comparison</h3>
             <div class="inline-controls">
-              <select id="compareCandidateA" aria-label="First candidate"></select>
-              <span>and</span>
-              <select id="compareCandidateB" aria-label="Second candidate"></select>
+              <label class="select-field"><span>First candidate</span><select id="compareCandidateA" aria-label="First candidate"></select></label>
+              <label class="select-field"><span>Second candidate</span><select id="compareCandidateB" aria-label="Second candidate"></select></label>
             </div>
           </div>
           <div id="candidateComparison" class="comparison-grid"></div>
@@ -131,15 +132,15 @@
           <div class="insight-heading">
             <div>
               <h3 id="explorerTitle">Demographic Explorer</h3>
-              <p>Compare precinct characteristics with candidate support.</p>
+              <p>See how a candidate's precinct support varies with a local characteristic.</p>
             </div>
             <div class="inline-controls">
-              <select id="explorerCandidate" aria-label="Candidate to explore"></select>
-              <select id="explorerFactor" aria-label="Demographic characteristic"></select>
-              <select id="explorerMode" aria-label="Starting or current support">
-                <option value="scenario">Current support</option>
-                <option value="base">Starting support</option>
-              </select>
+              <label class="select-field"><span>Candidate</span><select id="explorerCandidate" aria-label="Candidate to explore"></select></label>
+              <label class="select-field"><span>Characteristic</span><select id="explorerFactor" aria-label="Demographic characteristic"></select></label>
+              <label id="explorerModeField" class="select-field" hidden><span>Support shown</span><select id="explorerMode" aria-label="Result shown">
+                  <option value="scenario">After your changes</option>
+                  <option value="base">Election result</option>
+                </select></label>
             </div>
           </div>
           <div class="chart-shell">
@@ -152,33 +153,33 @@
           <div class="insight-heading">
             <div>
               <h3 id="precinctTitle">Precinct Table</h3>
-              <p>Search, filter, sort, and download the current results.</p>
+              <p id="precinctCaption">Search, sort, and download precinct results.</p>
             </div>
             <button id="downloadPrecincts" class="secondary-button" type="button">Download CSV</button>
           </div>
           <div class="table-controls">
             <input id="precinctSearch" type="search" inputmode="numeric" placeholder="Search precinct" aria-label="Search precinct number">
-            <select id="precinctCandidate" aria-label="Candidate shown in precinct table"></select>
-            <select id="precinctSort" aria-label="Sort precinct table">
-              <option value="margin_asc">Closest margin</option>
-              <option value="change_desc">Largest candidate gain</option>
-              <option value="share_desc">Highest candidate share</option>
-              <option value="turnout_desc">Largest turnout increase</option>
-              <option value="pid_asc">Precinct number</option>
-            </select>
-            <label class="check-control"><input id="changedOnly" type="checkbox"> Different winner than start</label>
+            <label class="select-field"><span>Candidate</span><select id="precinctCandidate" aria-label="Candidate shown in precinct table"></select></label>
+            <label class="select-field"><span>Sort by</span><select id="precinctSort" aria-label="Sort precinct table">
+                <option value="margin_asc">Closest precincts</option>
+                <option value="change_desc" hidden>Largest support gain</option>
+                <option value="share_desc">Strongest precincts for candidate</option>
+                <option value="turnout_desc" hidden>Largest turnout increase</option>
+                <option value="pid_asc">Precinct number</option>
+              </select></label>
+            <label id="changedOnlyControl" class="check-control" hidden><input id="changedOnly" type="checkbox"> Winner changed</label>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Precinct</th>
-                  <th>Current winner</th>
+                  <th>Winner</th>
                   <th>Winner share</th>
                   <th>Margin</th>
                   <th id="selectedCandidateHeading">Selected candidate</th>
-                  <th>Change</th>
-                  <th>Turnout</th>
+                  <th id="candidateChangeHeading" hidden>Change from result</th>
+                  <th id="turnoutChangeHeading" hidden>Turnout change</th>
                 </tr>
               </thead>
               <tbody id="precinctTableBody"></tbody>
@@ -190,7 +191,7 @@
         <section class="methods" aria-labelledby="methodsTitle">
           <span class="section-kicker">Methods and sources</span>
           <h3 id="methodsTitle">How the shuffler is built</h3>
-          <p class="methods-intro">The starting point comes from actual D.C. precinct results. We combine those results with Census characteristics and earlier election patterns to estimate where each candidate is relatively stronger or weaker. Your controls then change those precinct-level relationships, and the district result is rebuilt from the changed precincts.</p>
+          <p class="methods-intro">The election result is the starting point. Census characteristics determine where a demographic or turnout change is strongest, while earlier elections can help focus a candidate's change around an established geographic base. Every district total is rebuilt from the changed precincts.</p>
 
           <div class="source-flow" role="img" aria-label="Election results, Census data, and precinct boundaries feed candidate estimates; user controls create precinct scenarios and district outputs">
             <section class="flow-stage source-stage">
@@ -205,8 +206,8 @@
             <span class="flow-arrow" aria-hidden="true">→</span>
             <section class="flow-stage">
               <span class="flow-number">2</span>
-              <h4>Precinct estimates</h4>
-              <p>For each candidate, the analysis measures how support varies with local demographics, density, and past election strength where available.</p>
+              <h4>Local context</h4>
+              <p>Each precinct is placed along the demographic ranges shown in the controls. Candidate changes can also follow prior election strength where that history is available.</p>
             </section>
             <span class="flow-arrow" aria-hidden="true">→</span>
             <section class="flow-stage">

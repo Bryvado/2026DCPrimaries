@@ -19,6 +19,9 @@ The current page includes the precinct shuffler plus live scenario impact,
 candidate comparison, demographic exploration, and a downloadable precinct
 table. Each demographic characteristic has separate support and turnout
 controls. Support changes candidate shares; turnout changes precinct vote totals.
+Reset reproduces the observed precinct result. Demographic support controls move
+the checked candidates together as a coalition, while turnout controls affect
+vote totals without changing candidate preference.
 
 ## Static app
 

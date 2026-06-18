@@ -1,19 +1,19 @@
 const DEMOGRAPHIC_SLIDERS = [
-  ["black_share", "Black population", "ACS estimate of residents identifying as Black"],
+  ["black_share", "Black population share", "ACS estimate of the share of residents who identify as Black"],
   ["median_age", "Median age", "ACS median age"],
-  ["income", "Median income", "ACS median household income"],
-  ["college", "College educated", "ACS share of adults age 25+ with a bachelor's degree or higher"],
-  ["renter", "Renter households", "ACS share of occupied homes that are renter-occupied"],
-  ["age_25_34", "Age 25-34", "ACS share of residents age 25 to 34"],
-  ["transit", "Transit commuters", "ACS share of commuters using public transit"],
+  ["income", "Median household income", "ACS median household income"],
+  ["college", "Adults with a bachelor's degree", "ACS share of adults age 25+ with a bachelor's degree or higher"],
+  ["renter", "Renter-occupied homes", "ACS share of occupied homes that are renter-occupied"],
+  ["age_25_34", "Residents ages 25-34", "ACS share of residents age 25 to 34"],
+  ["transit", "Public-transit commuters", "ACS share of commuters using public transit"],
   ["density", "Population density", "Residents per square kilometer"],
 ];
 
 const PRESETS = [
-  ["Young renter surge", { renter: 4, age_25_34: 4, median_age: -3 }],
-  ["Dense-core swing", { density: 5, transit: 3, college: 2 }],
-  ["Income realignment", { income: -4, college: 3, renter: -2 }],
-  ["Black population +", { black_share: 5 }],
+  ["Younger renter support", { renter: 4, age_25_34: 4, median_age: -3 }],
+  ["Dense-area support", { density: 5, transit: 3, college: 2 }],
+  ["Income pattern", { income: -4, college: 3, renter: -2 }],
+  ["Black population support", { black_share: 5 }],
 ];
 
 const TERM_GROUPS = {
@@ -89,7 +89,7 @@ const state = {
     compareB: null,
     explorerCandidate: null,
     explorerFactor: "black_share",
-    explorerMode: "scenario",
+    explorerMode: "base",
     precinctCandidate: null,
     search: "",
     changedOnly: false,
@@ -117,21 +117,28 @@ const els = {
   selectAllDemographicCandidates: document.querySelector("#selectAllDemographicCandidates"),
   clearDemographicCandidates: document.querySelector("#clearDemographicCandidates"),
   impactCards: document.querySelector("#impactCards"),
+  impactTitle: document.querySelector("#impactTitle"),
+  impactCaption: document.querySelector("#impactCaption"),
   compareCandidateA: document.querySelector("#compareCandidateA"),
   compareCandidateB: document.querySelector("#compareCandidateB"),
   candidateComparison: document.querySelector("#candidateComparison"),
   explorerCandidate: document.querySelector("#explorerCandidate"),
   explorerFactor: document.querySelector("#explorerFactor"),
   explorerMode: document.querySelector("#explorerMode"),
+  explorerModeField: document.querySelector("#explorerModeField"),
   scatterSummary: document.querySelector("#scatterSummary"),
   scatterPlot: document.querySelector("#scatterPlot"),
   precinctSearch: document.querySelector("#precinctSearch"),
   precinctCandidate: document.querySelector("#precinctCandidate"),
   precinctSort: document.querySelector("#precinctSort"),
   changedOnly: document.querySelector("#changedOnly"),
+  changedOnlyControl: document.querySelector("#changedOnlyControl"),
   precinctTableBody: document.querySelector("#precinctTableBody"),
   precinctTableMeta: document.querySelector("#precinctTableMeta"),
   selectedCandidateHeading: document.querySelector("#selectedCandidateHeading"),
+  candidateChangeHeading: document.querySelector("#candidateChangeHeading"),
+  turnoutChangeHeading: document.querySelector("#turnoutChangeHeading"),
+  precinctCaption: document.querySelector("#precinctCaption"),
   downloadPrecincts: document.querySelector("#downloadPrecincts"),
 };
 
@@ -478,9 +485,34 @@ function syncSliderInputs() {
 
 function populateContestSelect(contests) {
   els.contestSelect.innerHTML = contests.map((contest) => {
-    const label = `${contest.contest_number} - ${contest.contest_name}`;
+    const label = humanContestName(contest);
     return `<option value="${escapeHtml(contest.contest_number)}">${escapeHtml(label)}</option>`;
   }).join("");
+}
+
+function humanContestName(contest) {
+  const names = {
+    "14": "Democratic primary: Delegate to the U.S. House",
+    "15": "Democratic primary: Mayor",
+    "17": "Democratic primary: At-Large Council",
+    "22": "Democratic primary: Attorney General",
+    "25": "Democratic Party: National Committeeman",
+    "26": "Democratic Party: National Committeewoman",
+    "27": "Democratic Party: At-Large Committeeman",
+    "28": "Democratic Party: At-Large Committeewoman",
+    "75": "Special election: At-Large Council",
+  };
+  if (names[contest.contest_number]) return names[contest.contest_number];
+  return titleCaseContest(contest.contest_name);
+}
+
+function titleCaseContest(value) {
+  return String(value || "")
+    .replace(/^DEM\s+/i, "Democratic primary: ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .replace(/U\.s\./g, "U.S.")
+    .replace(/D\.c\./g, "D.C.");
 }
 
 function buildContests(validCandidates) {
@@ -566,10 +598,65 @@ function territoryControlCopy(territory) {
   };
 }
 
+function scenarioState() {
+  const supportActive = Object.values(state.demoSliders).some((value) => Math.abs(num(value)) > 0.0001)
+    || Object.values(state.candidateShifts).some((value) => Math.abs(num(value)) > 0.0001);
+  const turnoutActive = Object.values(state.turnoutSliders).some((value) => Math.abs(num(value)) > 0.0001);
+  return { active: supportActive || turnoutActive, supportActive, turnoutActive };
+}
+
+function syncScenarioVisibility() {
+  const status = scenarioState();
+  const wasSupportActive = document.body.classList.contains("support-active");
+  document.body.classList.toggle("scenario-active", status.active);
+  document.body.classList.toggle("support-active", status.supportActive);
+  document.body.classList.toggle("turnout-active", status.turnoutActive);
+
+  const changeMode = els.modeToggle.querySelector('[data-mode="change"]');
+  changeMode.hidden = !status.supportActive;
+  els.explorerModeField.hidden = !status.supportActive;
+  els.changedOnlyControl.hidden = !status.supportActive;
+  els.candidateChangeHeading.hidden = !status.supportActive;
+  els.turnoutChangeHeading.hidden = !status.turnoutActive;
+
+  const changeSort = els.precinctSort.querySelector('[value="change_desc"]');
+  const turnoutSort = els.precinctSort.querySelector('[value="turnout_desc"]');
+  changeSort.hidden = !status.supportActive;
+  turnoutSort.hidden = !status.turnoutActive;
+
+  if (status.supportActive && !wasSupportActive) state.insightFilters.explorerMode = "scenario";
+  if (!status.supportActive) {
+    state.insightFilters.explorerMode = "base";
+    state.insightFilters.changedOnly = false;
+    if (state.insightFilters.sort === "change_desc") {
+      state.insightFilters.sort = "margin_asc";
+    }
+    if (state.mapMode === "change") {
+      state.mapMode = "winner";
+      els.modeToggle.querySelectorAll(".mode-btn").forEach((button) => {
+        button.classList.toggle("active", button.dataset.mode === "winner");
+      });
+    }
+  }
+  if (!status.turnoutActive && state.insightFilters.sort === "turnout_desc") {
+    state.insightFilters.sort = "margin_asc";
+  }
+
+  els.impactCaption.textContent = status.active
+    ? "How your changes affect the district result."
+    : "A quick read of the precinct results.";
+  els.impactTitle.textContent = status.active ? "Effect of your changes" : "District at a glance";
+  els.precinctCaption.textContent = status.active
+    ? "Search, sort, and download the result after your changes."
+    : "Search, sort, and download precinct results.";
+  return status;
+}
+
 function update() {
   if (!state.data || !state.contestNumber) return;
 
   syncDemographicCandidateScope();
+  syncScenarioVisibility();
 
   const scenario = runScenario(state.contestNumber);
   const summary = summarizeScenario(scenario.rows);
@@ -588,7 +675,7 @@ function syncDemographicCandidateScope() {
   const candidates = getContestCandidates();
   const validKeys = new Set(candidates.map((row) => row.model_key));
   if (state.demographicScopeContest !== state.contestNumber) {
-    state.demographicCandidateSelection = new Set(validKeys);
+    state.demographicCandidateSelection = new Set(candidates[0] ? [candidates[0].model_key] : []);
     state.demographicScopeContest = state.contestNumber;
   }
   state.demographicCandidateSelection = new Set(
@@ -639,7 +726,7 @@ function runScenario(contestNumber) {
     .map((row) => ({
       ...row,
       color: candidateColorByModel.get(row.model_key),
-      base_share: num(row.fitted_share),
+      base_share: num(row.actual_share),
       demographic_delta_pp: 0,
       direct_delta_pp: 0,
       direct_input_pp: 0,
@@ -653,13 +740,37 @@ function runScenario(contestNumber) {
       scenario_votes: 0,
     }));
 
-  for (const row of contestPredictions) {
-    if (!state.demographicCandidateSelection.has(row.model_key)) continue;
+  const initialRowsByPid = groupBy(contestPredictions, (row) => row.pid);
+  for (const [pid, precinctRows] of initialRowsByPid.entries()) {
+    const selectedRows = precinctRows.filter((row) => state.demographicCandidateSelection.has(row.model_key));
+    const unselectedRows = precinctRows.filter((row) => !state.demographicCandidateSelection.has(row.model_key));
+    if (!selectedRows.length || !unselectedRows.length) continue;
+
+    let coalitionShift = 0;
     for (const [factor] of DEMOGRAPHIC_SLIDERS) {
       const shift = state.demoSliders[factor] || 0;
       if (shift === 0) continue;
-      const exposure = state.data.turnoutExposureByFactor.get(factor)?.get(row.pid) || 0;
-      row.demographic_delta_pp += shift * exposure;
+      const exposure = state.data.turnoutExposureByFactor.get(factor)?.get(pid) || 0;
+      coalitionShift += shift * exposure;
+    }
+
+    const selectedBase = selectedRows.reduce((sum, row) => sum + row.base_share, 0);
+    const unselectedBase = unselectedRows.reduce((sum, row) => sum + row.base_share, 0);
+    const modeledTotal = selectedBase + unselectedBase;
+    const selectedTarget = clamp(selectedBase + coalitionShift, 0, modeledTotal);
+    const unselectedTarget = modeledTotal - selectedTarget;
+
+    for (const row of selectedRows) {
+      const target = selectedBase > 0
+        ? row.base_share * (selectedTarget / selectedBase)
+        : selectedTarget / selectedRows.length;
+      row.demographic_delta_pp = target - row.base_share;
+    }
+    for (const row of unselectedRows) {
+      const target = unselectedBase > 0
+        ? row.base_share * (unselectedTarget / unselectedBase)
+        : unselectedTarget / unselectedRows.length;
+      row.demographic_delta_pp = target - row.base_share;
     }
   }
 
@@ -689,16 +800,17 @@ function runScenario(contestNumber) {
   for (const [pid, precinctRows] of rowsByPid.entries()) {
     const baseSorted = [...precinctRows].sort((a, b) => b.base_share - a.base_share);
     baseWinnerByPid.set(pid, baseSorted[0]?.model_key || null);
+    const modeledShareTotal = precinctRows.reduce((sum, row) => sum + row.base_share, 0);
 
     let total = 0;
     for (const row of precinctRows) {
       row.raw_scenario_share = row.base_share + row.delta_pp;
-      row.raw_clip = Math.max(row.raw_scenario_share, 0.001);
+      row.raw_clip = Math.max(row.raw_scenario_share, 0);
       total += row.raw_clip;
     }
 
     for (const row of precinctRows) {
-      row.scenario_share = total > 0 ? (row.raw_clip / total) * 100 : 0;
+      row.scenario_share = total > 0 ? (row.raw_clip / total) * modeledShareTotal : 0;
       row.scenario_votes = (row.scenario_share / 100) * num(row.contest_votes) * row.turnout_multiplier;
     }
 
@@ -821,9 +933,13 @@ function renderSummary(summary) {
     return;
   }
 
+  const status = scenarioState();
   const candidateRows = summary.map((row) => {
     const delta = row.share - row.base_share;
     const deltaClass = delta >= 0 ? "delta-pos" : "delta-neg";
+    const changeDetail = status.supportActive
+      ? `, <span class="${deltaClass}">${formatSigned(delta)} points</span> from the election result`
+      : "";
     return `
       <article class="candidate-row">
         <div class="candidate-main">
@@ -833,7 +949,7 @@ function renderSummary(summary) {
         <div class="bar-track">
           <div class="bar" style="width:${clamp(row.share, 0, 100)}%; background:${row.color}"></div>
         </div>
-        <div class="candidate-detail">${formatVotes(row.votes)} votes, <span class="${deltaClass}">${formatSigned(delta)} points</span> from start</div>
+        <div class="candidate-detail">${formatVotes(row.votes)} votes${changeDetail}</div>
       </article>
     `;
   }).join("");
@@ -863,12 +979,15 @@ function renderMeta(summary, scenario) {
     return scenario.baseWinnerByPid.get(pid) !== scenario.scenarioWinnerByPid.get(pid);
   }).length;
 
+  const status = scenarioState();
   els.contestMeta.textContent = contest
-    ? `${contest.contest_family} - ${candidateCount} candidates`
+    ? `${humanContestName(contest)} | ${candidateCount} candidates`
     : "";
   const baseVotes = voteTotals.base;
   const turnoutChange = baseVotes > 0 ? ((totalVotes / baseVotes) - 1) * 100 : 0;
-  els.mapMeta.textContent = `${precinctCount} precincts, ${formatVotes(totalVotes)} votes (${formatSigned(turnoutChange)}% turnout), ${flippedCount} winner changes. District totals come from precinct results.`;
+  els.mapMeta.textContent = status.active
+    ? `${precinctCount} precincts, ${formatVotes(totalVotes)} votes${status.turnoutActive ? ` (${formatSigned(turnoutChange)}% turnout)` : ""}${status.supportActive ? `, ${flippedCount} precinct winner${flippedCount === 1 ? "" : "s"} changed` : ""}. District totals come from precinct results.`
+    : `${precinctCount} precincts and ${formatVotes(totalVotes)} votes. District totals come from precinct results.`;
 }
 
 function renderInsights(scenario, summary) {
@@ -933,11 +1052,17 @@ function renderImpactCards(scenario, summary) {
   const baseVotes = voteTotals.base;
   const turnoutChange = baseVotes > 0 ? ((currentVotes / baseVotes) - 1) * 100 : 0;
 
-  const cards = [
+  const status = scenarioState();
+  const cards = status.active ? [
     ["District leader", leader?.candidate || "None", `${formatPct(leader?.share || 0)} support, ${lead.toFixed(2)}-point lead`],
-    ["Turnout", `${formatSigned(turnoutChange)}%`, `${formatVotes(currentVotes)} votes in this scenario`],
-    ["Winner changes", String(flipped), flipped ? "Precincts with a different leader" : "No precinct leaders changed"],
-    ["Biggest movement", mover?.candidate || "None", mover ? `${formatSigned(mover.share - mover.base_share)} points` : "No change"],
+    ...(status.turnoutActive ? [["Turnout change", `${formatSigned(turnoutChange)}%`, `${formatVotes(currentVotes)} votes after your changes`]] : []),
+    ...(status.supportActive ? [["Precincts that flipped", String(flipped), flipped ? "Precincts with a different leader" : "No precinct leaders changed"]] : []),
+    ...(status.supportActive ? [["Largest candidate shift", mover?.candidate || "None", mover ? `${formatSigned(mover.share - mover.base_share)} points districtwide` : "No change"]] : []),
+    ["Closest precinct", closest ? `Precinct ${closest.pid}` : "None", closest ? `${closest.margin.toFixed(2)}-point margin` : "No result"],
+  ] : [
+    ["District leader", leader?.candidate || "None", `${formatPct(leader?.share || 0)} support, ${lead.toFixed(2)}-point lead`],
+    ["Votes cast", formatVotes(currentVotes), "Across the precinct results shown"],
+    ["Precincts led", String([...scenario.scenarioWinnerByPid.values()].filter((key) => key === leader?.model_key).length), leader?.candidate || "District leader"],
     ["Closest precinct", closest ? `Precinct ${closest.pid}` : "None", closest ? `${closest.margin.toFixed(2)}-point margin` : "No result"],
   ];
   els.impactCards.innerHTML = cards.map(([label, value, detail]) => `
@@ -958,6 +1083,7 @@ function renderCandidateComparison(scenario, summary) {
     winnerCounts.set(winner, (winnerCounts.get(winner) || 0) + 1);
   }
 
+  const status = scenarioState();
   els.candidateComparison.innerHTML = keys.map((key) => {
     const candidate = bySummary.get(key);
     const rows = scenario.rows.filter((row) => row.model_key === key).sort((a, b) => b.scenario_share - a.scenario_share);
@@ -967,8 +1093,8 @@ function renderCandidateComparison(scenario, summary) {
     return `
       <article class="comparison-card">
         <h4><span class="swatch" style="background:${candidate.color}"></span>${escapeHtml(candidate.candidate)}</h4>
-        <div class="comparison-stat"><span>Current district share</span><strong>${formatPct(candidate.share)}</strong></div>
-        <div class="comparison-stat"><span>Starting share</span><strong>${formatPct(candidate.base_share)}</strong></div>
+        <div class="comparison-stat"><span>${status.supportActive ? "After your changes" : "District vote share"}</span><strong>${formatPct(candidate.share)}</strong></div>
+        ${status.supportActive ? `<div class="comparison-stat"><span>Election result</span><strong>${formatPct(candidate.base_share)}</strong></div>` : ""}
         <div class="comparison-stat"><span>Precincts leading</span><strong>${winnerCounts.get(key) || 0}</strong></div>
         <div class="comparison-stat"><span>Strongest precinct</span><strong>${strongest ? `${strongest.pid} (${formatPct(strongest.scenario_share)})` : "None"}</strong></div>
         <div class="comparison-stat"><span>Weakest precinct</span><strong>${weakest ? `${weakest.pid} (${formatPct(weakest.scenario_share)})` : "None"}</strong></div>
@@ -1018,7 +1144,7 @@ function renderDemographicExplorer(scenario) {
   const fitStart = clamp(fit.intercept + (fit.slope * xMin), yMin, yMax);
   const fitEnd = clamp(fit.intercept + (fit.slope * xMax), yMin, yMax);
 
-  els.scatterSummary.innerHTML = `<strong>${escapeHtml(candidateName)}</strong> and ${escapeHtml(FACTOR_LABELS[factor])}: ${escapeHtml(correlationDescription(correlationValue))} relationship across precincts (r = ${correlationValue.toFixed(2)}). The solid line shows the overall best fit.`;
+  els.scatterSummary.innerHTML = demographicCaption(candidateName, FACTOR_LABELS[factor], correlationValue, mode);
   els.scatterPlot.innerHTML = `
     <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
     <line class="chart-axis" x1="${left}" y1="${top}" x2="${left}" y2="${height - bottom}"></line>
@@ -1038,6 +1164,7 @@ function renderDemographicExplorer(scenario) {
 
 function renderPrecinctTable(scenario) {
   if (!scenario) return;
+  const status = scenarioState();
   const selectedKey = state.insightFilters.precinctCandidate;
   const selectedName = scenario.candidateRows.find((row) => row.model_key === selectedKey)?.candidate || "Selected candidate";
   let rows = [...scenario.byPid.entries()].map(([pid, candidateRows]) => {
@@ -1067,7 +1194,7 @@ function renderPrecinctTable(scenario) {
   };
   rows.sort(sorters[state.insightFilters.sort] || sorters.margin_asc);
   state.latestTableRows = rows;
-  els.selectedCandidateHeading.textContent = selectedName;
+  els.selectedCandidateHeading.textContent = `${selectedName} support`;
   els.precinctTableBody.innerHTML = rows.map((row) => `
     <tr class="${row.changed ? "changed-row" : ""}">
       <td>${escapeHtml(row.pid)}</td>
@@ -1075,8 +1202,8 @@ function renderPrecinctTable(scenario) {
       <td>${formatPct(row.winner_share)}</td>
       <td>${row.margin.toFixed(2)} points</td>
       <td>${formatPct(row.candidate_share)}</td>
-      <td class="${row.candidate_change >= 0 ? "delta-pos" : "delta-neg"}">${formatSigned(row.candidate_change)} points</td>
-      <td>${formatSigned(row.turnout_change)}%</td>
+      ${status.supportActive ? `<td class="${row.candidate_change >= 0 ? "delta-pos" : "delta-neg"}">${formatSigned(row.candidate_change)} points</td>` : ""}
+      ${status.turnoutActive ? `<td>${formatSigned(row.turnout_change)}%</td>` : ""}
     </tr>
   `).join("");
   els.precinctTableMeta.textContent = `${rows.length} precinct${rows.length === 1 ? "" : "s"} shown.`;
@@ -1084,15 +1211,19 @@ function renderPrecinctTable(scenario) {
 
 function downloadPrecinctTable() {
   const rows = state.latestTableRows || [];
-  const headers = ["precinct", "winner", "winner_share", "margin", "candidate_share", "candidate_change", "turnout_change", "winner_changed"];
+  const status = scenarioState();
+  const headers = ["precinct", "winner", "winner_share", "margin", "candidate_share"]
+    .concat(status.supportActive ? ["candidate_change", "winner_changed"] : [])
+    .concat(status.turnoutActive ? ["turnout_change"] : []);
   const csvRows = [headers.join(",")].concat(rows.map((row) => [
     row.pid, row.winner, row.winner_share, row.margin, row.candidate_share,
-    row.candidate_change, row.turnout_change, row.changed,
+    ...(status.supportActive ? [row.candidate_change, row.changed] : []),
+    ...(status.turnoutActive ? [row.turnout_change] : []),
   ].map(csvCell).join(",")));
   const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `dc-election-scenario-${state.contestNumber}.csv`;
+  link.download = `dc-election-precincts-${state.contestNumber}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
 }
@@ -1135,6 +1266,16 @@ function correlationDescription(value) {
   return `${strength} ${direction}`;
 }
 
+function demographicCaption(candidateName, factorLabel, value, mode) {
+  const name = `<strong>${escapeHtml(candidateName)}</strong>`;
+  const factor = escapeHtml(factorLabel.toLowerCase());
+  const relationship = Math.abs(value) < 0.35
+    ? `${factor} has little consistent relationship with ${name}'s support across precincts`
+    : `${name} tends to receive ${value > 0 ? "more" : "less"} support in precincts where ${factor} is higher`;
+  const view = scenarioState().supportActive && mode === "scenario" ? " This chart includes your changes." : "";
+  return `${relationship} (r = ${value.toFixed(2)}). The line summarizes the precinct pattern; it does not describe individual voters.${view}`;
+}
+
 function formatFactorValue(factor, value) {
   if (factor === "income") return `$${Math.round(value).toLocaleString("en-US")}`;
   if (factor === "density") return `${Math.round(value).toLocaleString("en-US")}/km²`;
@@ -1148,10 +1289,11 @@ function csvCell(value) {
 }
 
 function renderMapTitle() {
+  const active = scenarioState().supportActive;
   const titles = {
-    winner: "Precinct Winner Map",
-    margin: "Precinct Margin Map",
-    change: "Change From Starting Point",
+    winner: active ? "Precinct winners after your changes" : "Precinct winners",
+    margin: active ? "Winning margins after your changes" : "Precinct winning margins",
+    change: "Change from the election result",
   };
   els.mapTitle.textContent = titles[state.mapMode] || titles.winner;
 }
@@ -1185,10 +1327,11 @@ function renderLegend(summary) {
 }
 
 function flipLegend() {
+  if (!scenarioState().supportActive) return "";
   return `
     <span class="legend-item">
       <span class="swatch swatch-flip"></span>
-      Different winner than start
+      Winner changed
     </span>
   `;
 }
@@ -1256,7 +1399,8 @@ function paintMap() {
 
     const winner = rows[0];
     const second = rows[1];
-    const flipped = scenario.baseWinnerByPid.get(pid) !== scenario.scenarioWinnerByPid.get(pid);
+    const flipped = scenarioState().supportActive
+      && scenario.baseWinnerByPid.get(pid) !== scenario.scenarioWinnerByPid.get(pid);
     path.classList.toggle("flipped", flipped);
     path.setAttribute("stroke", flipped ? "#e8b820" : "#ffffff");
     path.setAttribute("stroke-width", flipped ? "2.5" : "0.65");
@@ -1294,16 +1438,18 @@ function showTooltip(event, pid) {
   const rows = scenario?.byPid.get(pid) || [];
   const baseWinner = scenario?.baseWinnerByPid.get(pid);
   const scenarioWinner = scenario?.scenarioWinnerByPid.get(pid);
-  const flipped = baseWinner && scenarioWinner && baseWinner !== scenarioWinner;
-  const baseWinnerName = rows.find((row) => row.model_key === baseWinner)?.candidate || "Starting winner";
-  const scenarioWinnerName = rows.find((row) => row.model_key === scenarioWinner)?.candidate || "Current winner";
+  const active = scenarioState().supportActive;
+  const flipped = active && baseWinner && scenarioWinner && baseWinner !== scenarioWinner;
+  const baseWinnerName = rows.find((row) => row.model_key === baseWinner)?.candidate || "Election winner";
+  const scenarioWinnerName = rows.find((row) => row.model_key === scenarioWinner)?.candidate || "New winner";
   const topRows = rows.slice(0, 4);
   const body = topRows.map((row) => {
     const delta = row.scenario_share - row.base_share;
     const direct = row.direct_delta_pp
       ? `; candidate setting added ${formatSigned(row.direct_delta_pp)} points here`
       : "";
-    return `${escapeHtml(row.candidate)}: ${formatPct(row.scenario_share)} (${formatSigned(delta)} points from start${direct})`;
+    const change = active ? ` (${formatSigned(delta)} points from the election result${direct})` : "";
+    return `${escapeHtml(row.candidate)}: ${formatPct(row.scenario_share)}${change}`;
   }).join("<br>");
 
   const winnerChange = flipped

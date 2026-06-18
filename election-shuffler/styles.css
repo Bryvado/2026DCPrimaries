@@ -48,6 +48,10 @@ h1, h2, h3, p {
   margin: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .app-shell {
   min-height: 100vh;
 }
@@ -216,6 +220,16 @@ h1, h2, h3, p {
   display: flex;
   justify-content: space-between;
   margin-bottom: 10px;
+}
+
+.demographic-scope-sticky {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  margin: 0 -14px 8px;
+  padding: 14px 14px 4px;
+  position: sticky;
+  top: -14px;
+  z-index: 8;
 }
 
 .section-hint {
@@ -883,6 +897,20 @@ input[type="range"] {
   min-width: 0;
 }
 
+.select-field {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.select-field > span {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .inline-controls select,
 .table-controls select,
 .table-controls input[type="search"] {
@@ -978,9 +1006,14 @@ input[type="range"] {
   background: var(--teal-light);
   color: var(--teal-dark);
   font-size: 12px;
+  line-height: 1.55;
   margin-bottom: 12px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
   padding: 9px 11px;
+  white-space: normal;
 }
 
 .scatter-plot {
@@ -1394,6 +1427,11 @@ th {
   .controls {
     height: auto;
     max-height: none;
+    position: relative;
+    top: auto;
+  }
+
+  .demographic-scope-sticky {
     position: relative;
     top: auto;
   }

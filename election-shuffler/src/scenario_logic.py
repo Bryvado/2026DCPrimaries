@@ -46,7 +46,7 @@ def run_precinct_scenario(
     contest_number,
     sliders=None,
     precincts=None,
-    use_fitted=True,
+    use_fitted=False,
 ):
     """Return one row per precinct-candidate under a scenario.
 
@@ -120,10 +120,11 @@ def run_precinct_scenario(
 
     pred["raw_scenario_share"] = pred["base_share"] + pred["delta_pp"]
 
-    pred["raw_clip"] = pred["raw_scenario_share"].clip(lower=0.001)
+    pred["raw_clip"] = pred["raw_scenario_share"].clip(lower=0)
+    modeled_share_total = pred.groupby("pid")["base_share"].transform("sum")
     pred["scenario_share"] = (
         pred["raw_clip"] /
-        pred.groupby("pid")["raw_clip"].transform("sum") * 100
+        pred.groupby("pid")["raw_clip"].transform("sum") * modeled_share_total
     )
 
     pred["scenario_votes"] = pred["scenario_share"] / 100 * pred["contest_votes"]
