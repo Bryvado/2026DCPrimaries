@@ -1,1 +1,0 @@
-[content from app.js - full file]
